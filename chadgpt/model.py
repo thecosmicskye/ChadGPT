@@ -236,12 +236,18 @@ def read_sha256sums(path):
     return sums
 
 
-def sha256_file(path):
-    h = hashlib.sha256()
-    with open(path, 'rb') as fh:
-        for chunk in iter(lambda: fh.read(1 << 22), b''):
-            h.update(chunk)
-    return h.hexdigest()
+def read_weights(path):
+    """A checkpoint file's bytes. A file over GitHub's 100 MB limit is stored as <name>.part0, <name>.part1, ...
+    (plain git, no LFS) and joined here."""
+    path = Path(path)
+    if path.is_file():
+        return path.read_bytes()
+    parts = []
+    while (part := path.with_name(f'{path.name}.part{len(parts)}')).is_file():
+        parts.append(part.read_bytes())
+    if not parts:
+        raise FileNotFoundError(f'{path} (or {path.name}.part0, ...) not found')
+    return b''.join(parts)
 
 
 def verify_checkpoint(checkpoint_dir, sha256sums=None):
@@ -255,9 +261,9 @@ def verify_checkpoint(checkpoint_dir, sha256sums=None):
         key = f'{prefix}/{name}'
         if key not in expected:
             raise ValueError(f'{key} is not listed in {sums_path}')
-        digest = sha256_file(checkpoint_dir / name)
+        digest = hashlib.sha256(read_weights(checkpoint_dir / name)).hexdigest()
         if digest != expected[key]:
-            raise ValueError(f'{key}: sha256 {digest} does not match {expected[key]} (is Git LFS installed?)')
+            raise ValueError(f'{key}: sha256 {digest} does not match {expected[key]} (incomplete download?)')
         found[name] = digest
     return found
 
@@ -289,7 +295,7 @@ def load_checkpoint(checkpoint_dir, device='cpu', verify=True, sha256sums=None):
     net = TeamPolicyNet(tuple(specs['policy']['layer_sizes']), specs['shared_head']['num_outputs'])
     for name in MODEL_NAMES:
         spec = specs[name]
-        raw = (checkpoint_dir / spec['file']).read_bytes()
+        raw = read_weights(checkpoint_dir / spec['file'])
         if len(raw) != 2 * spec['numel']:
             raise ValueError(f'{name}: {len(raw)} bytes, expected {2 * spec["numel"]}')
         values = torch.frombuffer(bytearray(raw), dtype=torch.bfloat16).float()

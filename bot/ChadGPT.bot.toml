@@ -11,7 +11,7 @@ hivemind = true
 
 [details]
 description = "One model to rule them all: a single neural network drives all three cars as one hivemind, passing to itself, rotating with itself and covering for itself. It never looks at the scoreboard, so it never gets tilted."
-fun_fact = "ChadGPT is a hivemind: a single neural network drives all three cars at once, so the whole team shares one brain. It learned by playing itself for about 900 years of simulated 3v3."
+fun_fact = "ChadGPT is a hivemind: a single neural network drives all three cars at once, so the whole team shares one brain. It learned by playing itself for about 940 years of simulated 3v3."
 source_link = "https://github.com/thecosmicskye/ChadGPT"
 developer = "Cosmic Skye"
 language = "Python (PyTorch)"

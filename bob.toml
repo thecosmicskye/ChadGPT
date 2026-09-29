@@ -1,0 +1,9 @@
+# RLBot botpack build (https://github.com/swz-git/bob): PyInstaller with chadgpt.spec. bob replaces run_command with
+# the built exe and copies the logo and loadout next to the bot config.
+[[config]]
+project_name = "ChadGPT"
+bot_configs = ["bot/ChadGPT.bot.toml"]
+
+[config.builder_config]
+builder_type = "pyinstaller"
+entry_file = "chadgpt.spec"

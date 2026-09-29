@@ -23,6 +23,9 @@ VENV = ROOT / '.venv'
 LOCK = ROOT / '.venv.lock'
 MARKER = VENV / 'chadgpt-installed.txt'
 TORCH_INDEX = 'https://download.pytorch.org/whl/'
+# PyTorch is pinned here rather than in requirements.txt, so the RLBot botpack's build (bob) leaves it out: the pack's
+# builds use the shared CPU torch-archive (run_chadgpt.py).
+TORCH = 'torch==2.14.0'
 LOCK_STALE_SECONDS = 3600
 
 
@@ -63,7 +66,7 @@ def torch_variant():
 
 def wanted_marker(variant):
     req = (ROOT / 'requirements.txt').read_bytes()
-    return f'{hashlib.sha256(req).hexdigest()} {variant}\n'
+    return f'{hashlib.sha256(req).hexdigest()} {TORCH} {variant}\n'
 
 
 def installed():
@@ -82,11 +85,8 @@ def install():
     if not venv_python().is_file():
         log(f'creating {VENV} with Python {sys.version.split()[0]}')
         subprocess.run([sys.executable, '-m', 'venv', str(VENV)], check=True)
-    torch_pin = next(line.strip() for line in (ROOT / 'requirements.txt').read_text().splitlines()
-                     if line.strip().startswith('torch=='))
-    if variant != 'pypi':
-        log(f'installing PyTorch ({variant} build; the CUDA build is a large download, please wait)')
-        pip(torch_pin, '--index-url', TORCH_INDEX + variant)
+    log(f'installing PyTorch ({variant} build; the CUDA build is a large download, please wait)')
+    pip(TORCH, *(['--index-url', TORCH_INDEX + variant] if variant != 'pypi' else []))
     log('installing the other requirements')
     pip('-r', str(ROOT / 'requirements.txt'))
     MARKER.write_text(wanted_marker(variant))

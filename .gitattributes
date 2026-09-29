@@ -1,3 +1,2 @@
-*.bf16 filter=lfs diff=lfs merge=lfs -text
 # Windows batch files are stored with CRLF as-is (no conversion).
 *.cmd -text

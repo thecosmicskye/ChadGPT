@@ -22,7 +22,7 @@ No Python needed. `ChadGPT\ChadGPT.exe --check` tests it without the game.
 
 **From source** (GPU, Linux, macOS)
 
-1. Clone with Git LFS.
+1. Clone the repository.
 2. Run `python bootstrap.py --setup-only` (or `setup.cmd`).
 3. Add this folder in RLBot.
 
