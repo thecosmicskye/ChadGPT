@@ -1,0 +1,7 @@
+# ChadGPT Python runtime (tested versions). bootstrap.py installs these into .venv, taking torch from the PyTorch
+# index (a CUDA build when an NVIDIA driver is present, else the CPU build).
+torch==2.14.0
+numpy==2.5.3
+rlbot==2.0.0b55
+rlbot-flatbuffers==0.19.0
+rocketsim==2.2.1

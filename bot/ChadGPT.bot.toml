@@ -1,0 +1,18 @@
+#:schema https://rlbot.org/schemas/agent.json
+[settings]
+name = "ChadGPT 3v3"
+loadout_file = "ChadGPT.loadout.toml"
+logo_file = "logo.png"
+root_dir = "."
+run_command = "cmd.exe /d /c run_chadgpt.cmd"
+run_command_linux = "python3 ../bootstrap.py --version-dir ."
+agent_id = "skye/chadgpt"
+hivemind = true
+
+[details]
+description = "One model to rule them all: a single neural network drives all three cars as one hivemind, passing to itself, rotating with itself and covering for itself. It never looks at the scoreboard, so it never gets tilted."
+fun_fact = "ChadGPT is a hivemind: a single neural network drives all three cars at once, so the whole team shares one brain. It learned by playing itself for about 900 years of simulated 3v3."
+source_link = "https://github.com/thecosmicskye/ChadGPT"
+developer = "Cosmic Skye"
+language = "Python (PyTorch)"
+tags = ["teamplay"]

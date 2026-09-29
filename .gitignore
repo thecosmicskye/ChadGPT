@@ -1,0 +1,13 @@
+huggingface/
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.venv.lock/
+build/
+# bot/memory/: only the shipped warmed-up seed.npy is tracked; recurrent.npy (the live memory), the lock and temporary
+# files are not
+bot/memory/*
+!bot/memory/seed.npy
+# collision meshes are Rocket League data (dumped on first launch); never commit them
+collision_meshes/
