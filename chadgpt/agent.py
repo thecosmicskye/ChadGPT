@@ -9,7 +9,6 @@ import argparse
 import json
 import os
 import sys
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,9 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from .packet import PAD_FROM_PACKET, PacketReader
-from .mesh_dump import meshes_loadable, start_shadow_arena
 from .policy import ChadGPTModel, TeamPolicy, find_checkpoint
-from .shadow_arena import ShadowArenaError, init_rocketsim, mesh_dir_from
 from .state import empty_state
 
 F = np.float32
@@ -117,12 +114,6 @@ class TeamController:
         self.goal_log = os.environ.get('CHADGPT_GOAL_LOG') or None  # optional: append one line per goal
         self.state_hook = None  # optional callable(state) for offline checks; never set by the live bot
         self.controls_hook = None  # optional callable(bots) that may replace the held controls (offline checks)
-        # Shadow arena (chadgpt/shadow_arena.py): None until chadgpt.mesh_dump hands one over (install_shadow), then
-        # swapped in at the next packet boundary. phase and decided let that background thread time its work.
-        self.shadow = None
-        self._pending_shadow = None
-        self.phase = -1
-        self.decided = threading.Event()
         self._warm_up()
         # Persistent memory (live bot only): the recurrent state is never cleared, is loaded from memory_file when the
         # model loads, and is saved by ONE writer process (the first to lock writer.lock next to it); other processes
@@ -166,10 +157,6 @@ class TeamController:
             np.save(f, self.policy.h.detach().float().cpu().numpy().reshape(-1))
         os.replace(tmp, self.memory_file)  # atomic: a crash never leaves a half-written file
         self.last_memory_save = now
-
-    def install_shadow(self, arena, note=''):
-        """Hand over a ready ShadowArena (any thread); it takes effect at the start of the next packet."""
-        self._pending_shadow = (arena, note)
 
     def _warm_up(self):
         """One throw-away decision so the first real one is not slowed by lazy allocation."""
@@ -234,10 +221,6 @@ class TeamController:
         """GamePacket -> {car index: (8,) controls}."""
         mi = packet.match_info
         frame, now = int(mi.frame_num), float(mi.seconds_elapsed)
-        self.phase = int(mi.match_phase)
-        if self._pending_shadow is not None:  # packet boundary: the shadow arena takes over from here
-            (self.shadow, note), self._pending_shadow = self._pending_shadow, None
-            self.log(f'shadow arena ON at frame {frame} ({self.shadow.mesh_dir}{"; " + note if note else ""})')
         if self.last_batch_frame >= 0 and frame <= self.last_batch_frame:
             if frame == self.last_batch_frame:
                 return self.outputs()
@@ -291,7 +274,6 @@ class TeamController:
             for b in self.bots.values():  # goal / replay: idle with zero controls until the kickoff setup
                 b.reset(frame)
             self.policy.clear_roles()
-            self.decided.set()  # no decisions during the replay: a quiet time for background work
             return
         if self.round_active_start < 0 and released and not score_changed:
             self.round_active_start = frame
@@ -314,9 +296,6 @@ class TeamController:
         for i, b in self.bots.items():
             if i < len(s['prev']):
                 s['prev'][i] = b.controls
-        cars = self.reader.last_cars
-        if self.shadow is not None and self.shadow.begin_packet(cars, clock):
-            self.shadow.apply(s, self.reader.last_ground_evidence, cars)
         if self.state_hook is not None:
             self.state_hook(s)
 
@@ -379,21 +358,6 @@ class TeamController:
             b.controls = b.action.copy()  # no action delay
         if self.controls_hook is not None:
             self.controls_hook(self.bots)
-        if self.shadow is not None:
-            # Predict the next packet's contacts from this one with the controls every car now holds.
-            packet_controls = self.reader.last_controls
-            current = packet_controls.copy()
-            for i, b in self.bots.items():
-                if i < len(current):
-                    current[i] = b.controls
-            ph = packet.balls[0].physics if len(packet.balls) else None
-            ball = ((ph.location.x, ph.location.y, ph.location.z), (ph.velocity.x, ph.velocity.y, ph.velocity.z),
-                    (ph.angular_velocity.x, ph.angular_velocity.y, ph.angular_velocity.z),
-                    (ph.rotation.yaw, ph.rotation.pitch, ph.rotation.roll)) if ph is not None else (
-                (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-            self.shadow.queue_prediction(cars, packet_controls, current, ball)
-        if pending:
-            self.decided.set()
         self.clock_running_last = clock
         self.loop_running_last = True
 
@@ -440,16 +404,15 @@ def make_hivemind_class():
             self.model = ChadGPTModel(ckpt, self.device, threads=self.threads, precision=self.precision)
             self.controller = TeamController(self.model, self.team, self.indices, log=self._logger.info,
                                              memory_file=Path(self.version_dir) / 'memory' / 'recurrent.npy')
-            shadow = start_shadow_arena(self.controller, self.version_dir, self._logger.info)
             self._priority_set = False
             field_xy = [(p.location.x, p.location.y) for p in self.field_info.boost_pads]
             if len(field_xy) == 34:
                 order = self.controller.reader.set_field_pads(field_xy)
                 if not np.array_equal(order, PAD_FROM_PACKET):
                     self._logger.warning('FieldInfo boost pads are not in the standard RLBot order; mapped by position')
-            self._logger.info('ChadGPT %s (%s) loaded on %s (%s) in %.1f s for team %d, cars %s; shadow arena %s',
+            self._logger.info('ChadGPT %s (%s) loaded on %s (%s) in %.1f s for team %d, cars %s',
                               self.version_dir.name, ckpt.name, self.model.device, self.model.precision,
-                              time.perf_counter() - t0, self.team, self.indices, shadow)
+                              time.perf_counter() - t0, self.team, self.indices)
             self.trace = None
             trace_dir = os.environ.get('CHADGPT_TRACE_DIR')
             if trace_dir:  # diagnostics only: one JSON line per packet
@@ -476,7 +439,6 @@ def make_hivemind_class():
                 row = dict(f=int(mi.frame_num), ph=int(mi.match_phase),
                            sc=[int(t.score) for t in packet.teams], ms=round((time.perf_counter() - t0) * 1e3, 3),
                            dec=self.controller.decisions - before,
-                           sa=None if self.controller.shadow is None else int(self.controller.shadow.applied),
                            h={i: self.controller.heads.get(i, -1) for i in self.indices},
                            why=self.controller.reasons,
                            c={i: [round(float(x), 2) for x in c] for i, c in controls.items()})
@@ -515,29 +477,7 @@ def self_check(args):
           f'{torch.get_num_threads()} thread(s); one team decision '
           f'{ms:.1f} ms, actions {[int(res["actions"][i]) for i in range(3)]}; ready in {time.perf_counter() - t0:.1f} s. OK',
           flush=True)
-    print(f'Shadow arena: {shadow_check(args.version_dir)}', flush=True)
     return 0
-
-
-def shadow_check(version_dir):
-    """The shadow arena's status for --check: RocketSim, the meshes, and a resting car's floor contact."""
-    mode = os.environ.get('CHADGPT_SHADOW_ARENA', 'auto').strip().lower() or 'auto'
-    if mode == '0':
-        return 'off (CHADGPT_SHADOW_ARENA=0)'
-    try:
-        import RocketSim  # noqa: F401
-    except ImportError as e:
-        return f'unavailable (rocketsim package missing: {e})'
-    mesh_dir = mesh_dir_from(version_dir)
-    ok, reason, known = meshes_loadable(mesh_dir)
-    if not ok:
-        return (f'no meshes yet ({reason}); '
-                + ('dumped from Rocket League on the first match' if os.name == 'nt' else 'off'))
-    try:
-        init_rocketsim(mesh_dir)
-    except ShadowArenaError as e:
-        return f'meshes do not load: {e}'
-    return f'ready ({reason}, {known} of 16 known; a resting car touches the floor)'
 
 
 def main(argv=None):

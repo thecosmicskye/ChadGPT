@@ -225,10 +225,6 @@ class PacketReader:
     def __init__(self):
         self.temporal: dict[int, Temporal] = {}
         self.pad_from_packet = PAD_FROM_PACKET  # the hivemind re-derives it from FieldInfo (set_field_pads)
-        # The latest packet's cars after temporal reconstruction, the packet's own ground flags and every car's
-        # last_input: the shadow arena's input (chadgpt/shadow_arena.py)
-        self.last_cars, self.last_ground_evidence = [], np.zeros(0, bool)
-        self.last_controls = np.zeros((0, 8), np.float32)
 
     def clear(self):
         self.temporal.clear()
@@ -264,8 +260,7 @@ class PacketReader:
                        is_demoed=p.demolished_timeout >= 0, demo_timer=demo_timer_of(p.demolished_timeout),
                        is_jumping=False, is_flipping=False,
                        flip_rel_torque=np.zeros(3, np.float32), jump_time=F(0.0), air_time_since_jump=F(0.0),
-                       boosting_time=F(0.0), handbrake=F(0.0), air_time=F(0.0), is_boosting=False,
-                       rot=(ph.rotation.yaw, ph.rotation.pitch, ph.rotation.roll), is_supersonic=bool(p.is_supersonic))
+                       boosting_time=F(0.0), handbrake=F(0.0), air_time=F(0.0), is_boosting=False)
             controls[i] = controls_of(p.last_input)
             cars.append(car)
         ground_evidence = np.array([c['is_on_ground'] for c in cars], bool)
@@ -284,7 +279,7 @@ class PacketReader:
                       'flip_rel_torque'):
                 s[k][i] = car[k]
             # Floor contact from height (normal up): the turtle bit of the action mask.
-            s['turtled'][i] = car['world_contact'] = (not car['is_demoed']) and car['pos'][2] <= FLOOR_CONTACT_MAX_Z
+            s['turtled'][i] = (not car['is_demoed']) and car['pos'][2] <= FLOOR_CONTACT_MAX_Z
             s['wheel_contacts'][i] = 4 if ground_evidence[i] else 0
         ball = packet.balls[0].physics if len(packet.balls) else None
         if ball is not None:
@@ -294,5 +289,4 @@ class PacketReader:
         if len(packet.boost_pads) == 34:  # packet order -> training order
             s['pads'][:] = np.array([bp.timer for bp in packet.boost_pads], np.float32)[self.pad_from_packet]
         s['prev'][:] = controls  # every car's last_input; the agent puts its own cars' held controls over these
-        self.last_cars, self.last_ground_evidence, self.last_controls = cars, ground_evidence, controls
         return s

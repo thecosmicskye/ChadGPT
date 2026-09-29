@@ -47,9 +47,8 @@ No Python needed. `ChadGPT\ChadGPT.exe --check` tests it without the game.
 | `recurrent_candidate_delta` | 128 inputs, 64 outputs | 8,256 |
 | **Total** | | **80,327,972** |
 
-- **Policy:** PPO self-play in RocketSim; one network acts for all three cars, 30 decisions per second
+- **Policy:** PPO self-play; one network acts for all three cars, 30 decisions per second
 - **Memory:** never reset; kept in `bot/memory/` across matches and restarts. It starts from a memory warmed up in play (`bot/memory/seed.npy`); delete `bot/memory/` to start from zero
-- **Shadow arena:** RLBot reports no wheel or surface contact, so each packet is replayed for one tick in [RocketSim](https://github.com/ZealanL/RocketSim) to read them, as in training. This needs Rocket League's collision meshes, which are not included: on Windows the bot copies them from the running game on its first match (with [RLArenaCollisionDumper](https://github.com/ZealanL/RLArenaCollisionDumper)) and turns the arena on mid-match. Without them it plays on the packet's contacts
 
 ## Options (environment variables)
 
@@ -59,13 +58,9 @@ No Python needed. `ChadGPT\ChadGPT.exe --check` tests it without the game.
 | `CHADGPT_PRECISION` | `bf16` | `bf16` (as trained) or `fp32` |
 | `CHADGPT_THREADS` | `auto` | CPU threads |
 | `CHADGPT_PERSIST_MEMORY` | `1` | `0`: reset the memory every match |
-| `CHADGPT_SHADOW_ARENA` | `auto` | `auto`: on when collision meshes are found or dumped; `0`: off; `1`: required (no meshes, no start) |
-| `CHADGPT_COLLISION_MESHES` | `bot/collision_meshes` | folder holding `soccar/*.cmf` (RocketSim's layout); no dump is attempted when set |
 
 ## License
 
-- Copyright © 2026 Cosmic Skye, under the [GNU AGPL v3.0](LICENSE) (runtime, weights and every file here except `third_party/`)
-- `third_party/RLArenaCollisionDumper/RLArenaCollisionDumper.exe` is © ZealanL under the [MIT License](third_party/RLArenaCollisionDumper/LICENSE) and stays under it
-- [RocketSim](https://github.com/ZealanL/RocketSim) (the `rocketsim` package, bundled in the Windows builds) is © ZealanL under the MIT License
+- Copyright © 2026 Cosmic Skye, under the [GNU AGPL v3.0](LICENSE) (runtime, weights and every file here)
 - Trained with a modified fork of [GigaLearnCPP](https://github.com/ZealanL/GigaLearnCPP-Leak) on [RocketSim](https://github.com/ZealanL/RocketSim)
 - Rocket League is a trademark of Psyonix; this project is not affiliated with or endorsed by Psyonix or Epic Games
