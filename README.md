@@ -66,5 +66,6 @@ No Python needed. `ChadGPT\ChadGPT.exe --check` tests it without the game.
 
 - Copyright © 2026 Cosmic Skye, under the [GNU AGPL v3.0](LICENSE) (runtime, weights and every file here except `third_party/`)
 - `third_party/RLArenaCollisionDumper/RLArenaCollisionDumper.exe` is © ZealanL under the [MIT License](third_party/RLArenaCollisionDumper/LICENSE) and stays under it
+- [RocketSim](https://github.com/ZealanL/RocketSim) (the `rocketsim` package, bundled in the Windows builds) is © ZealanL under the MIT License
 - Trained with a modified fork of [GigaLearnCPP](https://github.com/ZealanL/GigaLearnCPP-Leak) on [RocketSim](https://github.com/ZealanL/RocketSim)
 - Rocket League is a trademark of Psyonix; this project is not affiliated with or endorsed by Psyonix or Epic Games
